@@ -1,83 +1,197 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Script from "next/script";
 import ResultForm from "@/components/ResultForm";
 import { BOARDS, EXAMS } from "@/lib/data";
 
 export const metadata: Metadata = {
   title:
-    "Education Board Results Bangladesh — SSC, HSC, JSC Result Online",
+    "Education Board Results Bangladesh — SSC, HSC, JSC Result Online (শিক্ষা বোর্ড ফলাফল)",
   description:
-    "Check your SSC, HSC, JSC, Dakhil, Alim, Vocational and Technical results from all Bangladesh education boards. Fast, free, and mobile-friendly.",
-  alternates: { canonical: "/" },
+    "Check SSC, HSC, JSC, Dakhil, Alim, Vocational and Technical results online from every Bangladesh education board — Dhaka, Chittagong, Rajshahi, Comilla, Barisal, Jessore, Sylhet, Dinajpur, Mymensingh, Madrasah and Technical. Fast, free, mobile-first and printable.",
+  keywords: [
+    "education board results",
+    "educationboardresults.gov.bd",
+    "SSC result 2024",
+    "HSC result 2024",
+    "JSC result",
+    "Dakhil result",
+    "Alim result",
+    "Vocational result",
+    "HSC Vocational result",
+    "HSC BM result",
+    "Diploma in Commerce result",
+    "Bangladesh board result",
+    "Dhaka board result",
+    "Chittagong board result",
+    "Rajshahi board result",
+    "Comilla board result",
+    "Barisal board result",
+    "Jessore board result",
+    "Sylhet board result",
+    "Dinajpur board result",
+    "Mymensingh board result",
+    "Madrasah board result",
+    "Technical board result",
+    "result with marksheet",
+    "শিক্ষা বোর্ড ফলাফল",
+    "এসএসসি রেজাল্ট",
+    "এইচএসসি রেজাল্ট",
+    "জেএসসি রেজাল্ট",
+    "দাখিল রেজাল্ট",
+    "আলিম রেজাল্ট",
+  ],
+  alternates: {
+    canonical: "/",
+    languages: {
+      "en-BD": "/",
+      "bn-BD": "/",
+    },
+  },
+  openGraph: {
+    title:
+      "Education Board Results Bangladesh — SSC, HSC, JSC, Dakhil, Alim",
+    description:
+      "Marksheet-ready results from all 11 Bangladesh education boards. Mobile-first. Print & PDF.",
+    url: "/",
+    type: "website",
+  },
 };
 
 export default function HomePage() {
+  const homeJsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "WebPage",
+        "@id": "https://edu-board-results.pages.dev/#webpage",
+        url: "https://edu-board-results.pages.dev/",
+        name: "Education Board Results Bangladesh",
+        inLanguage: ["en", "bn"],
+        isPartOf: { "@id": "https://edu-board-results.pages.dev/#website" },
+        about: { "@id": "https://edu-board-results.pages.dev/#org" },
+        description:
+          "Check SSC, HSC, JSC, Dakhil, Alim, Vocational and Technical results from every Bangladesh education board with a printable marksheet and PDF download.",
+      },
+      {
+        "@type": "BreadcrumbList",
+        itemListElement: [
+          {
+            "@type": "ListItem",
+            position: 1,
+            name: "Home",
+            item: "https://edu-board-results.pages.dev/",
+          },
+        ],
+      },
+      {
+        "@type": "Service",
+        "@id": "https://edu-board-results.pages.dev/#service",
+        serviceType: "Education Board Result Lookup",
+        provider: { "@id": "https://edu-board-results.pages.dev/#org" },
+        areaServed: { "@type": "Country", name: "Bangladesh" },
+        availableChannel: {
+          "@type": "ServiceChannel",
+          serviceUrl: "https://edu-board-results.pages.dev/#check",
+          availableLanguage: ["en", "bn"],
+        },
+        category: [
+          "SSC result",
+          "HSC result",
+          "JSC / JDC result",
+          "Dakhil result",
+          "Alim result",
+          "Vocational result",
+          "Technical result",
+        ],
+      },
+      {
+        "@type": "FAQPage",
+        mainEntity: FAQS.map((f) => ({
+          "@type": "Question",
+          name: f.q,
+          acceptedAnswer: { "@type": "Answer", text: f.a },
+        })),
+      },
+    ],
+  };
+
   return (
     <>
-      {/* Hero + Form */}
+      <Script
+        id="ld-json-home"
+        type="application/ld+json"
+        strategy="afterInteractive"
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(homeJsonLd) }}
+      />
+      {/* Hero */}
       <section className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#e8f5ef] via-white to-[#fdecee]" />
-        <div className="mx-auto max-w-6xl px-4 sm:px-6 pt-10 sm:pt-16 pb-10">
-          <div className="grid gap-8 lg:grid-cols-5 items-start">
-            <div className="lg:col-span-2">
-              <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-[var(--brand-dark)]">
-                <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />
-                Live — all 11 education boards
-              </span>
-              <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 text-balance">
-                Bangladesh Education Board Results
-              </h1>
-              <p className="mt-2 font-bangla text-xl sm:text-2xl font-semibold text-slate-700">
-                বাংলাদেশ শিক্ষা বোর্ডের ফলাফল
-              </p>
-              <p className="mt-4 text-base text-slate-600 max-w-prose">
-                Check SSC, HSC, JSC, Dakhil, Alim, Vocational and Technical
-                results from every Bangladesh education board — Dhaka,
-                Chittagong, Rajshahi, Comilla, Barisal, Jessore, Sylhet,
-                Dinajpur, Mymensingh, Madrasah and Technical.
-              </p>
-
-              <ul className="mt-6 space-y-2 text-sm text-slate-700">
-                {[
-                  { en: "Mobile-first, fast loading", bn: "মোবাইলের জন্য উপযোগী" },
-                  { en: "Covers every board and exam", bn: "সকল বোর্ড ও পরীক্ষা" },
-                  { en: "No ads, no signup, completely free", bn: "সম্পূর্ণ বিনামূল্যে" },
-                  { en: "Print & save your marksheet", bn: "প্রিন্ট ও সংরক্ষণ" },
-                ].map((i) => (
-                  <li key={i.en} className="flex items-start gap-2">
-                    <svg
-                      className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--brand)]"
-                      viewBox="0 0 20 20"
-                      fill="currentColor"
-                    >
-                      <path
-                        fillRule="evenodd"
-                        d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-4-4A1 1 0 015.7 8.3L9 11.6l6.3-6.3a1 1 0 011.4 0z"
-                        clipRule="evenodd"
-                      />
-                    </svg>
-                    <span>
-                      {i.en}{" "}
-                      <span className="font-bangla text-slate-500">— {i.bn}</span>
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-
-            <div className="lg:col-span-3" id="check">
-              <ResultForm />
-              <p className="mt-3 text-xs text-slate-500">
-                Your roll and registration number are sent directly to the
-                official education board and are not stored on our servers.{" "}
-                <Link href="/privacy/" className="underline">
-                  Privacy Policy
-                </Link>
-                .
-              </p>
-            </div>
-          </div>
+        <div className="mx-auto max-w-4xl px-4 sm:px-6 pt-10 sm:pt-14 pb-6 text-center">
+          <span className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1 text-xs font-medium text-[var(--brand-dark)]">
+            <span className="h-1.5 w-1.5 rounded-full bg-[var(--brand)]" />
+            Live — all 11 education boards
+          </span>
+          <h1 className="mt-4 text-3xl sm:text-4xl lg:text-5xl font-extrabold tracking-tight text-slate-900 text-balance">
+            Bangladesh Education Board Results
+          </h1>
+          <p className="mt-2 font-bangla text-xl sm:text-2xl font-semibold text-slate-700">
+            বাংলাদেশ শিক্ষা বোর্ডের ফলাফল
+          </p>
         </div>
+      </section>
+
+      {/* Result form */}
+      <section className="relative">
+        <div className="absolute inset-0 -z-10 bg-gradient-to-br from-[#e8f5ef] via-white to-[#fdecee]" />
+        <div className="mx-auto max-w-3xl px-4 sm:px-6 pb-10" id="check">
+          <ResultForm />
+          <p className="mt-3 text-xs text-slate-500 text-center">
+            Your roll and registration number are sent directly to the
+            official education board and are not stored on our servers.{" "}
+            <Link href="/privacy/" className="underline">
+              Privacy Policy
+            </Link>
+            .
+          </p>
+        </div>
+      </section>
+
+      {/* About / features */}
+      <section className="mx-auto max-w-4xl px-4 sm:px-6 pt-4 pb-12">
+        <p className="text-base text-slate-600 text-balance">
+          Check SSC, HSC, JSC, Dakhil, Alim, Vocational and Technical
+          results from every Bangladesh education board — Dhaka,
+          Chittagong, Rajshahi, Comilla, Barisal, Jessore, Sylhet,
+          Dinajpur, Mymensingh, Madrasah and Technical.
+        </p>
+
+        <ul className="mt-6 grid gap-2 sm:grid-cols-2 text-sm text-slate-700">
+          {[
+            { en: "Mobile-first, fast loading", bn: "মোবাইলের জন্য উপযোগী" },
+            { en: "Covers every board and exam", bn: "সকল বোর্ড ও পরীক্ষা" },
+            { en: "No ads, no signup, completely free", bn: "সম্পূর্ণ বিনামূল্যে" },
+            { en: "Print & save your marksheet", bn: "প্রিন্ট ও সংরক্ষণ" },
+          ].map((i) => (
+            <li key={i.en} className="flex items-start gap-2">
+              <svg
+                className="mt-0.5 h-4 w-4 flex-shrink-0 text-[var(--brand)]"
+                viewBox="0 0 20 20"
+                fill="currentColor"
+              >
+                <path
+                  fillRule="evenodd"
+                  d="M16.7 5.3a1 1 0 010 1.4l-7 7a1 1 0 01-1.4 0l-4-4A1 1 0 015.7 8.3L9 11.6l6.3-6.3a1 1 0 011.4 0z"
+                  clipRule="evenodd"
+                />
+              </svg>
+              <span>
+                {i.en}{" "}
+                <span className="font-bangla text-slate-500">— {i.bn}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
       </section>
 
       {/* Exams */}
