@@ -7,14 +7,35 @@ type PagesFunction<Env = unknown> = (ctx: {
   params: Record<string, string>;
   waitUntil: (p: Promise<unknown>) => void;
 }) => Response | Promise<Response>;
-//
+
 // Flow:
 //   1. GET the board home page to obtain a PHPSESSID cookie + the numeric captcha.
 //   2. Evaluate the captcha ("A + B") to produce the expected answer.
 //   3. POST to /result.php with the same cookie + user-submitted fields.
-//   4. Parse the response HTML: if it's a JS redirect to `index.php?err=NNN`
-//      we return { ok:false, errorCode }. Otherwise we extract the result
-//      fragment and return it as sanitized HTML.
+//   4. Parse the response HTML into structured JSON (student info + grades).
+//      If upstream redirects to `index.php?err=NNN` we return { ok:false, errorCode }.
+
+export interface Grade {
+  code: string;
+  subject: string;
+  grade: string;
+}
+
+export interface ResultPayload {
+  roll: string;
+  reg: string;
+  name: string;
+  fatherName: string;
+  motherName: string;
+  board: string;
+  group: string;
+  examType: string;
+  dob: string;
+  institute: string;
+  result: string;
+  gpa: string;
+  grades: Grade[];
+}
 
 export const onRequestPost: PagesFunction = async (ctx) => {
   let body: Record<string, string>;
@@ -62,7 +83,9 @@ export const onRequestPost: PagesFunction = async (ctx) => {
       502
     );
   }
-  const captchaAnswer = String(Number(captchaMatch[1]) + Number(captchaMatch[2]));
+  const captchaAnswer = String(
+    Number(captchaMatch[1]) + Number(captchaMatch[2])
+  );
 
   // Step 2 — submit the form
   const form = new URLSearchParams({
@@ -103,20 +126,26 @@ export const onRequestPost: PagesFunction = async (ctx) => {
 
   // Upstream uses JS redirects for errors:
   //   <script language='javascript'>window.location.href="index.php?err=105"; </script>
-  const redirect = /window\.location\.href\s*=\s*["']index\.php\?err=(\d+)/.exec(raw);
+  const redirect = /window\.location\.href\s*=\s*["']index\.php\?err=(\d+)/.exec(
+    raw
+  );
   if (redirect) {
     return json({ ok: false, errorCode: redirect[1] });
   }
 
-  const cleaned = extractResult(raw);
-  if (!cleaned) {
+  const parsed = parseResult(raw, { roll, reg });
+  if (!parsed) {
     return json(
-      { ok: false, error: "Result could not be parsed from the upstream response." },
+      {
+        ok: false,
+        error:
+          "Result could not be parsed from the upstream response. The page format may have changed.",
+      },
       502
     );
   }
 
-  return json({ ok: true, html: cleaned });
+  return json({ ok: true, result: parsed });
 };
 
 export const onRequestGet: PagesFunction = async () =>
@@ -157,45 +186,111 @@ function validate(v: Record<string, string | undefined>): string | null {
     "dibs",
   ];
   if (!v.exam || !allowedExams.includes(v.exam)) return "Pick a valid exam.";
-  if (!v.board || !allowedBoards.includes(v.board)) return "Pick a valid board.";
+  if (!v.board || !allowedBoards.includes(v.board))
+    return "Pick a valid board.";
   if (!v.year || !/^\d{4}$/.test(v.year)) return "Enter a valid 4-digit year.";
-  if (!v.roll || !/^\d{4,6}$/.test(v.roll)) return "Enter a valid roll number.";
-  if (!v.reg || !/^\d{4,10}$/.test(v.reg))
-    return "Enter a valid registration number.";
+  if (!v.roll || !/^\d{1,10}$/.test(v.roll))
+    return "Enter a valid roll number (digits only).";
+  if (!v.reg || !/^\d{1,15}$/.test(v.reg))
+    return "Enter a valid registration number (digits only).";
   return null;
 }
 
-// Keep only the result section and scrub scripts/styles/event handlers.
-function extractResult(html: string): string {
-  // The gov page puts the result inside a <table> within the main content.
-  // Try to extract everything after "Result" header to the footer.
-  let slice = html;
-  const bodyMatch = /<body[^>]*>([\s\S]*?)<\/body>/i.exec(html);
-  if (bodyMatch) slice = bodyMatch[1];
-
-  // Try to narrow down to the primary content table.
-  const tableMatch = /<table[\s\S]*?<\/table>/gi.exec(slice);
-  let content = tableMatch ? slice.match(/<table[\s\S]*?<\/table>/gi)!.join("\n") : slice;
-
-  // Prefer the largest table (usually the result grid).
-  const tables = slice.match(/<table[\s\S]*?<\/table>/gi);
-  if (tables && tables.length) {
-    content = tables.reduce((a, b) => (b.length > a.length ? b : a));
-  }
-
-  content = sanitize(content);
-  const text = content.replace(/<[^>]+>/g, "").replace(/\s+/g, " ").trim();
-  if (!text) return "";
-  return content;
+// Strip tags around a chunk of HTML and collapse whitespace.
+function textOf(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, " ")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&#039;/gi, "'")
+    .replace(/&apos;/gi, "'")
+    .replace(/&quot;/gi, '"')
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-function sanitize(html: string): string {
-  return html
-    .replace(/<script[\s\S]*?<\/script>/gi, "")
-    .replace(/<style[\s\S]*?<\/style>/gi, "")
-    .replace(/\son[a-z]+="[^"]*"/gi, "")
-    .replace(/\son[a-z]+='[^']*'/gi, "")
-    .replace(/\sstyle="[^"]*"/gi, "")
-    .replace(/\sclass="[^"]*"/gi, "")
-    .replace(/<img[^>]*>/gi, "");
+// Parse the upstream marksheet page into structured data.
+//
+// Upstream renders a flat sequence of <td>Label</td><td>Value</td> cells for
+// student info, followed by a Grade Sheet table with Code/Subject/Grade rows.
+function parseResult(
+  html: string,
+  fallback: { roll: string; reg: string }
+): ResultPayload | null {
+  // Capture all <td>...</td> cells in document order.
+  const cells: string[] = [];
+  const tdRe = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
+  let m: RegExpExecArray | null;
+  while ((m = tdRe.exec(html))) {
+    cells.push(textOf(m[1]));
+  }
+  if (cells.length === 0) return null;
+
+  // Build a label -> value map (case-insensitive; first occurrence wins).
+  const info: Record<string, string> = {};
+  for (let i = 0; i < cells.length - 1; i++) {
+    const label = cells[i].toLowerCase();
+    const value = cells[i + 1];
+    if (!value) continue;
+    if (!info[label]) info[label] = value;
+  }
+
+  const pick = (...labels: string[]): string => {
+    for (const l of labels) {
+      const v = info[l.toLowerCase()];
+      if (v && v.length < 200) return v;
+    }
+    return "";
+  };
+
+  const name = pick("name");
+  const roll = pick("roll no", "roll no.", "roll");
+  const board = pick("board");
+  const fatherName = pick("father's name", "fathers name", "father name");
+  const motherName = pick("mother's name", "mothers name", "mother name");
+  const group = pick("group");
+  const examType = pick("type", "exam type");
+  const dob = pick("date of birth", "dob");
+  const institute = pick("institute", "institution");
+  const result = pick("result");
+  const gpa = pick("gpa");
+
+  // Grades: look for rows with exactly Code / Subject / Grade triples.
+  // The grade-sheet table's data rows have 3 td's in order: code (digits),
+  // subject (letters), grade (A+, A, A-, B, C, D, F).
+  const grades: Grade[] = [];
+  const rowRe = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
+  let r: RegExpExecArray | null;
+  while ((r = rowRe.exec(html))) {
+    const rowHtml = r[1];
+    const rowCells: string[] = [];
+    const ctdRe = /<td\b[^>]*>([\s\S]*?)<\/td>/gi;
+    let c: RegExpExecArray | null;
+    while ((c = ctdRe.exec(rowHtml))) rowCells.push(textOf(c[1]));
+    if (rowCells.length !== 3) continue;
+    const [code, subject, grade] = rowCells;
+    if (!/^\d{2,4}$/.test(code)) continue;
+    if (!/^[A-F][+\-]?$/i.test(grade)) continue;
+    if (!subject) continue;
+    grades.push({ code, subject, grade: grade.toUpperCase() });
+  }
+
+  // If we have no name and no grades, upstream didn't give us a real result.
+  if (!name && grades.length === 0) return null;
+
+  return {
+    roll: roll || fallback.roll,
+    reg: fallback.reg,
+    name,
+    fatherName,
+    motherName,
+    board,
+    group,
+    examType,
+    dob,
+    institute,
+    result,
+    gpa,
+    grades,
+  };
 }
